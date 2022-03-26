@@ -36,6 +36,27 @@ func Run() {
 	}
 }
 
+//func checkNewVersion() {
+//	githubTag := &latest.GithubTag{
+//		Owner: config.CliGitHubOrg,
+//		Repository: config.CliGitHubRepo,
+//		FixVersionStrFunc: latest.DeleteFrontV(),
+//	}
+//
+//	res, err := latest.Check(githubTag, config.Version[1:])
+//
+//	if err != nil {
+//		log.Logger().Errorf("Could not check latest version for CLI %v", err)
+//	}
+//
+//	if res.Outdated {
+//		log.Logger().Warnf("A new version of the CLI is available. Current version: %s. Latest version: %s",
+//			config.Version,
+//			res.Current,
+//		)
+//	}
+//}
+
 func startCommand() *cobra.Command {
 	startCmd := &cobra.Command{
 		Use:   "start",
