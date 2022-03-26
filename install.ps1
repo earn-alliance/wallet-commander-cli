@@ -27,7 +27,7 @@ if ((Get-ExecutionPolicy).ToString() -notin $allowedExecutionPolicy) {
 Write-Output 'Initializing...'
 
 #Variables
-$repoName = "earn-alliance/wallet-commander"
+$repoName = "earn-alliance/wallet-commander-cli"
 $releaseName = "cli-wallet-commander-win-amd64.zip"
 $installationPath = $ENV:UserProfile+"\wallet-commander"
 

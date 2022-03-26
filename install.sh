@@ -16,7 +16,7 @@ NEED_SUDO=0
 
 #CLI related values
 OWNER="earn-alliance"
-REPO_NAME="wallet-commander"
+REPO_NAME="wallet-commander-cli"
 CLI_NAME="wallet-commander"  #will be the final name of the CLI command.
 GH="https://github.com"
 
