@@ -1,0 +1,56 @@
+name: Build and Release Binaries
+on:
+  push:
+    tags:
+      - "v*"
+jobs:
+  release:
+    strategy:
+      matrix:
+        go_version: [1.17.x]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Set CLI_VERSION
+        run: echo "CLI_VERSION=$(echo ${GITHUB_REF} | rev | cut -d'/' -f 1 | rev )" >> $GITHUB_ENV
+
+      - name: Configure & Build
+        uses: crazy-max/ghaction-xgo@v1.6.1
+        with:
+          xgo_version: latest
+          go_version: ${{ matrix.go_version }}
+          dest: build
+          prefix: wallet-commander
+          targets: windows/amd64,linux/amd64,darwin/amd64,darwin/arm64
+          v: true
+          x: false
+          ldflags: -X "github.com/earn-alliance/wallet-commander/internal/config.Version=${{ env.CLI_VERSION }}"
+
+      - name: Rename & compress binaries
+        run: |
+          cd ${{github.workspace}}/build
+          [ -f wallet-commander-linux* ] && mv wallet-commander-linux* wallet-commander && zip -rm cli-wallet-commander-linux-amd64.zip wallet-commander
+          [ -f wallet-commander-windows* ] && mv wallet-commander-windows* wallet-commander.exe && zip -rm cli-wallet-commander-win-amd64.zip wallet-commander.exe
+          [ -f *amd64 ] && mv *amd64 wallet-commander && zip -rm cli-wallet-commander-mac-amd64.zip wallet-commander
+          [ -f *arm64 ] && mv *arm64 wallet-commander && zip -rm cli-wallet-commander-mac-arm64.zip wallet-commander
+
+      - name: Create release
+        uses: actions/create-release@v1.0.0
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.CLI_VERSION }}
+          release_name: Release ${{ env.CLI_VERSION }}
+          draft: false
+          prerelease: false
+
+      - name: Upload assets to release
+        uses: glentiki/xbin-release-action@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          assets_path: ./build

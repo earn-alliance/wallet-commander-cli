@@ -1,0 +1,58 @@
+[
+  {
+    "constant":false,
+    "inputs":[
+      {
+        "name":"_listingIndex",
+        "type":"uint256"
+      }
+    ],
+    "name":"cancelAuction",
+    "outputs":[
+
+    ],
+    "payable":false,
+    "stateMutability":"nonpayable",
+    "type":"function"
+  },
+  {
+    "constant":false,
+    "inputs":[
+      {
+        "name": "_tokenTypes",
+        "type": "uint8"
+      },
+      {
+        "name":"_tokenAddresses",
+        "type":"address"
+      },
+      {
+        "name":"_tokenNumbers",
+        "type":"uint256"
+      },
+      {
+        "name":"_startingPrices",
+        "type":"uint256"
+      },
+      {
+        "name":"_endingPrices",
+        "type":"uint256"
+      },
+      {
+        "name":"_exchangeTokens",
+        "type":"address"
+      },
+      {
+        "name":"_durations",
+        "type":"uint256"
+      }
+    ],
+    "name":"createAuction",
+    "outputs":[
+
+    ],
+    "payable":false,
+    "stateMutability":"nonpayable",
+    "type":"function"
+  }
+]
