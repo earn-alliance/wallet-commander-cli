@@ -60,7 +60,7 @@ OR
 iwr -useb raw.githubusercontent.com/kintoproj/kinto-cli/main/install.ps1 | iex
 ```
 
-`Note :` You can also download the latest available release for your Operating System from [releases](https://github.com/kintoproj/kinto-cli/releases) and add it to your global `PATH` manually.
+**Note:** You can also download the latest available release for your Operating System from [releases](https://github.com/kintoproj/kinto-cli/releases) and add it to your global `PATH` manually.
 
 ## Usage
 
