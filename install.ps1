@@ -1,11 +1,5 @@
 #Requires -Version 5
 
-# remote install commands:
-#   Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/kintoproj/kinto-cli/master/install.ps1')
-#   iex (new-object net.webclient).downloadstring('https://raw.githubusercontent.com/kintoproj/kinto-cli/master/install.ps1')
-#   iwr https://raw.githubusercontent.com/kintoproj/kinto-cli/master/install.ps1 | iex
-
-
 $old_erroractionpreference = $erroractionpreference
 $erroractionpreference = 'stop' # quit if anything goes wrong
 
