@@ -30,20 +30,21 @@ func New(vault vault.Vault, store store.Store, client client.Client) (Controller
 }
 
 func (w *WalletCommanderController) ProcessWalletCommand(command query.WalletCommanderCommand) {
-	log.Logger().Infof("Processing command id %s of type %s", command.Id, command.Operation)
-
 	commandIdStr := command.Id.(string)
 	switch string(command.Operation) {
 	case string(api.OperationClaimSLP):
 		if payload, err := command.UnmarshalClaimSlpPayload(); err != nil {
 			w.store.UpdateWalletCommandTransactionError(commandIdStr, api.CommandStatusInvalidPayload, err.Error())
 		} else {
+			log.Logger().Infof("Processing claim slp command id %s for wallet %s", command.Id, payload.AddressToClaim)
 			w.claimSlp(commandIdStr, payload)
 		}
 	case string(api.OperationTransferSLP):
 		if payload, err := command.UnmarshalTransferSlpPayload(); err != nil {
 			w.store.UpdateWalletCommandTransactionError(commandIdStr, api.CommandStatusInvalidPayload, err.Error())
 		} else {
+			log.Logger().Infof("Processing transfer slp command id %s for"+
+				"transfering %d slp from %s to %s", command.Id, payload.Amount, payload.From, payload.To)
 			w.transferSlp(commandIdStr, payload)
 		}
 	case string(api.OperationTransferAxie):
@@ -52,6 +53,8 @@ func (w *WalletCommanderController) ProcessWalletCommand(command query.WalletCom
 		} else if err := payload.Validate(); err != nil {
 			w.store.UpdateWalletCommandTransactionError(commandIdStr, api.CommandStatusInvalidPayload, err.Error())
 		} else {
+			log.Logger().Infof("Processing transfer axie command id %s for"+
+				"transfering axie id %d from %s to %s", command.Id, payload.AxieId, payload.From, payload.To)
 			w.transferAxie(commandIdStr, payload)
 		}
 	}
@@ -72,40 +75,66 @@ func (w *WalletCommanderController) getPrivateKey(commandId, address string) (st
 
 	if err != nil {
 		w.store.UpdateWalletCommandTransactionError(commandId, api.CommandStatusBadConfig, err.Error())
+		log.Logger().Errorf("Could not find private key for wallet %s while executing command id %s.",
+			address,
+			commandId,
+		)
 	}
 
 	return key, err
 }
 
 func (w *WalletCommanderController) claimSlp(commandId string, payload *api.ClaimSlpPayload) {
-	key, err := w.vault.GetPrivateKey(payload.AddressToClaim)
+	if key, err := w.getPrivateKey(commandId, payload.AddressToClaim); err == nil {
+		tx, err := w.client.ClaimSlp(context.Background(), utils.RoninAddrToEthAddr(payload.AddressToClaim), key)
 
-	if err != nil {
-		w.store.UpdateWalletCommandTransactionError(commandId, api.CommandStatusBadConfig, err.Error())
-		return
+		if err == nil {
+			logWalletCommanderSuccess(api.OperationClaimSLP, commandId, tx)
+		} else {
+			logWalletCommanderError(api.OperationClaimSLP, commandId, err)
+		}
+
+		w.processTransactionResult(commandId, tx, err)
 	}
-
-	tx, err := w.client.ClaimSlp(context.Background(), utils.RoninAddrToEthAddr(payload.AddressToClaim), key)
-
-	w.processTransactionResult(commandId, tx, err)
 }
 
 func (w *WalletCommanderController) transferSlp(commandId string, payload *api.TransferSlpPayload) {
-	key, err := w.vault.GetPrivateKey(payload.From)
+	if key, err := w.getPrivateKey(commandId, payload.From); err == nil {
+		tx, err := w.client.TransferSlp(context.Background(), key, utils.RoninAddrToEthAddr(payload.To), payload.Amount)
 
-	if err != nil {
-		w.store.UpdateWalletCommandTransactionError(commandId, api.CommandStatusBadConfig, err.Error())
-		return
+		if err == nil {
+			logWalletCommanderSuccess(api.OperationTransferSLP, commandId, tx)
+		} else {
+			logWalletCommanderError(api.OperationTransferSLP, commandId, err)
+		}
+
+		w.processTransactionResult(commandId, tx, err)
 	}
-
-	tx, err := w.client.TransferSlp(context.Background(), key, utils.RoninAddrToEthAddr(payload.To), payload.Amount)
-
-	w.processTransactionResult(commandId, tx, err)
 }
 
 func (w *WalletCommanderController) transferAxie(commandId string, payload *api.TransferAxiePayload) {
 	if key, err := w.getPrivateKey(commandId, payload.From); err == nil {
 		tx, err := w.client.TransferAxie(context.Background(), key, utils.RoninAddrToEthAddr(payload.To), payload.AxieId)
+
+		if err == nil {
+			logWalletCommanderSuccess(api.OperationTransferAxie, commandId, tx)
+		} else {
+			logWalletCommanderError(api.OperationTransferAxie, commandId, err)
+		}
+
 		w.processTransactionResult(commandId, tx, err)
 	}
+}
+
+func logWalletCommanderSuccess(operation api.WalletCommanderOperation, commandId, tx string) {
+	log.Logger().Infof("Successfully signed transaction to %s for command id %s. Transaction id is: %s",
+		operation,
+		commandId,
+		tx,
+	)
+}
+
+func logWalletCommanderError(operation api.WalletCommanderOperation, commandId string, err error) {
+	log.Logger().Warnf("An blockchain error occurred trying to %v with command id %s with err %v"+
+		"The system will attempt to retry shortly with another command request if needed", operation, commandId, err)
 }
