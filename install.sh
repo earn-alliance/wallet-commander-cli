@@ -138,17 +138,17 @@ function install {
 	fi
 
 	echo ""
-	log "${GREEN}Installing Kinto CLI ${LATEST_VERSION}..."
+	log "${GREEN}Installing Wallet Commander CLI ${LATEST_VERSION}..."
 
 	#Extracted file from the Release archive
-	TMP_BIN=kinto
+	TMP_BIN=wallet-commander
 
 	# check for sudo
-	needSudo=$(touch ${OUT_DIR}/.kintoinstall &> /dev/null)
+	needSudo=$(touch ${OUT_DIR}/.wallet-commander &> /dev/null)
 	if [[ "$?" == "1" ]]; then
 		NEED_SUDO=1
 	fi
-	rm ${OUT_DIR}/.kintoinstall &> /dev/null
+	rm ${OUT_DIR}/.wallet-commander &> /dev/null
 
 	if [[ "$NEED_SUDO" == '1' ]]; then
 		log
@@ -172,8 +172,8 @@ function install {
 
 	#Installation successful!
 	echo ""
-	log "Kinto CLI successfully installed to $OUT_DIR/$CLI_NAME"
-	log "To get started type the command: kinto"
+	log "wallet-commander-cli successfully installed to $OUT_DIR/$CLI_NAME"
+	log "To get started type the command: wallet-commander"
 
 	#Cleanup residue
 	cleanup
