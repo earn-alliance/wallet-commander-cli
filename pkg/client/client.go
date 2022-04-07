@@ -33,7 +33,7 @@ const (
 
 var (
 	// TODO: Dynamically determine this value based on free transfers
-	defaultGasPriceWei = big.NewInt(0 * params.GWei)
+	defaultGasPriceWei = big.NewInt(1 * params.GWei)
 )
 
 type Client interface {
