@@ -60,7 +60,7 @@ type AxieClient struct {
 }
 
 func (c *AxieClient) GetWalletTransactionHistory(address string) (*pkgTypes.WalletTransactionHistory, error) {
-	const transactionQueryUrl = "https://explorer.roninchain.com/api/tokentxs?addr=%s&from=%d&size=%d&token=ERC20"
+	const transactionQueryUrl = "https://explorer-api.roninchain.com/tokentxs?addr=%s&from=%d&size=%d&token=ERC20"
 	const transactionsPerPage = 100
 	var walletTransactionHistory = new(pkgTypes.WalletTransactionHistory)
 	startFrom := 0
