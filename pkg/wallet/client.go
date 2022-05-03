@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -21,6 +22,7 @@ type Balance struct {
 	SLP  uint64
 	WETH uint64
 	AXS  uint64
+	RON  uint64
 }
 
 func New() (*Client, error) {
@@ -64,6 +66,12 @@ func (c *Client) getBalance(contract, addr string) (uint64, error) {
 	return balance.Uint64(), nil
 }
 
+func (c *Client) GetRON(addr string) (uint64, error) {
+	address := getAddress(addr)
+	balance, err := c.ethClient.BalanceAt(context.Background(), address, nil)
+	return balance.Uint64(), err
+}
+
 func (c *Client) GetSLP(addr string) (uint64, error) {
 	return c.getBalance(constants.SLP_CONTRACT, addr)
 }
@@ -92,9 +100,15 @@ func (c *Client) GetAllBalance(addr string) (Balance, error) {
 		return Balance{}, errors.Wrap(err, "unable to get WETH contract")
 	}
 
+	ron, err := c.GetRON(addr)
+	if err != nil {
+		return Balance{}, errors.Wrap(err, "unable to get RON")
+	}
+
 	return Balance{
 		SLP:  slp,
 		WETH: weth,
 		AXS:  axs,
+		RON:  ron,
 	}, nil
 }
