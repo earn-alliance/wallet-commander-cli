@@ -371,9 +371,7 @@ func (c *AxieClient) getClaimPayload(ctx context.Context, address, privateKeyStr
 	headers["Authorization"] = fmt.Sprintf("Bearer %s", token)
 	var resp ClaimableResponse
 	respBytes, err := utils.CallPostHttpApi(
-		fmt.Sprintf("https://game-api-pre.skymavis.com/v1/players/%s/items/1",
-			address,
-		),
+		"https://game-api-pre.skymavis.com/v1/players/me/items/1/claim",
 		nil,
 		headers,
 	)
