@@ -70,7 +70,7 @@ func TestAxieClient_GetClaimPayload(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			//TODO: Enter address and private key for this test. Probably need a test wallet for this!
 			var err error
-			_, err = c.getClaimPayload(context.Background(), "ronin:b789ce98aa566d1847bd31545d7491461c0af099", "{enter-key-here}")
+			_, err = c.GetClaimPayload(context.Background(), "ronin:b789ce98aa566d1847bd31545d7491461c0af099", "{enter-key-here}")
 
 			if err != nil {
 				t.Errorf("Received error getting claimable amount %v", err)

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"github.com/earn-alliance/wallet-commander-cli/internal/controller"
 	"github.com/earn-alliance/wallet-commander-cli/internal/log"
 	"github.com/earn-alliance/wallet-commander-cli/internal/server"
@@ -8,6 +9,7 @@ import (
 	"github.com/earn-alliance/wallet-commander-cli/internal/types"
 	"github.com/earn-alliance/wallet-commander-cli/internal/vault"
 	"github.com/earn-alliance/wallet-commander-cli/pkg/client"
+	"github.com/earn-alliance/wallet-commander-cli/pkg/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -24,6 +26,7 @@ func Run() {
 
 	rootCmd.AddCommand(
 		startCommand(),
+		getAxieCommand(),
 	)
 
 	rootCmd.PersistentFlags().String("log-level", "info", "Set log level to display specific CLI information"+
@@ -78,6 +81,155 @@ func startCommand() *cobra.Command {
 	startCmd.MarkPersistentFlagRequired("client-id")
 
 	return startCmd
+}
+
+func getAxieCommand() *cobra.Command {
+	axieCmd := &cobra.Command{
+		Use:   "axie",
+		Short: "Runs queries and operations for axie infinity",
+		Long:  "Manually query and run operations for axie infinity's blockchain and apis",
+	}
+	// Using sub commands so more platforms can contribute here
+	axieCmd.AddCommand(
+		getAxieClaimableSlpCommand(),
+		getAxieClaimPayloadCommand(),
+		getAxieClaimCommand(),
+	)
+
+	return axieCmd
+}
+
+func getAxieClaimableSlpCommand() *cobra.Command {
+	axieClaimableSlp := &cobra.Command{
+		Use:   "claimable-slp",
+		Short: "Runs queries and operations for axie infinity",
+		Long:  "Manually query and run operations for axie infinity's blockchain and apis",
+		Run: func(cmd *cobra.Command, args []string) {
+			setupLoggerFlags(cmd)
+			client, err := client.New()
+
+			if err != nil {
+				log.Logger().Panicf("could not create axie client with err: %v", err)
+			}
+
+			addr, _ := cmd.Flags().GetString("ronin-address")
+
+			resp, err := client.GetClaimableAmount(context.Background(), addr)
+
+			if err != nil {
+				log.Logger().Panicf("Error occurred getting claimable amount %v", err)
+			}
+
+			log.Logger().Debugf("Raw response %v", resp)
+			log.Logger().Printf("Claimable amount for addr is %v", resp.GetClaimableAmount())
+		},
+	}
+
+	axieClaimableSlp.Flags().String("ronin-address", "", "Ronin address to check for claimable slp")
+	axieClaimableSlp.MarkFlagRequired("ronin-address")
+
+	return axieClaimableSlp
+}
+
+func getAxieClaimPayloadCommand() *cobra.Command {
+	axieClaimableSlp := &cobra.Command{
+		Use:   "claim-payload",
+		Short: "Get claim payload payload for a ronin address",
+		Long:  "Claim payloads are used for signing against the blockchain for claiming SLP. This command requires secrets.json",
+		Run: func(cmd *cobra.Command, args []string) {
+			setupLoggerFlags(cmd)
+			secretsFile, err := cmd.Flags().GetString("secrets-file")
+
+			if err != nil {
+				log.Logger().Panicf("Internal Error: Secrets File flag not setup correctly %v", err)
+			}
+
+			client, err := client.New()
+			if err != nil {
+				log.Logger().Panicf("could not create axie client with err: %v", err)
+			}
+
+			vault, err := vault.New(secretsFile)
+
+			if err != nil {
+				log.Logger().Fatal("could not create vault %v", err)
+			}
+
+			addr, _ := cmd.Flags().GetString("ronin-address")
+
+			privateKey, err := vault.GetPrivateKey(addr)
+
+			if err != nil {
+				log.Logger().Panicf("could not get private key with err: %v", err)
+			}
+
+			resp, err := client.GetClaimPayload(context.Background(), addr, privateKey)
+
+			if err != nil {
+				log.Logger().Panicf("Error occurred getting claimable amount %v", err)
+			}
+
+			log.Logger().Printf("Payload authenticated with claimable amount for addr is %v", resp.GetClaimableAmount())
+			log.Logger().Printf("Payload json %v", resp)
+		},
+	}
+
+	axieClaimableSlp.Flags().String("ronin-address", "", "Ronin address to check for claimable slp")
+	axieClaimableSlp.MarkFlagRequired("ronin-address")
+
+	axieClaimableSlp.PersistentFlags().String("secrets-file", types.DefaultSecretsFileName, "Secrets file with array of private keys")
+
+	return axieClaimableSlp
+}
+
+func getAxieClaimCommand() *cobra.Command {
+	axieClaimableSlp := &cobra.Command{
+		Use:   "claim-slp",
+		Short: "Claim's SLP for a ronin address",
+		Long:  "Runs claiming logic for ronin address. This command requires secrets.json",
+		Run: func(cmd *cobra.Command, args []string) {
+			setupLoggerFlags(cmd)
+			secretsFile, err := cmd.Flags().GetString("secrets-file")
+
+			if err != nil {
+				log.Logger().Panicf("Internal Error: Secrets File flag not setup correctly %v", err)
+			}
+
+			client, err := client.New()
+			if err != nil {
+				log.Logger().Panicf("could not create axie client with err: %v", err)
+			}
+
+			vault, err := vault.New(secretsFile)
+
+			if err != nil {
+				log.Logger().Fatal("could not create vault %v", err)
+			}
+
+			addr, _ := cmd.Flags().GetString("ronin-address")
+
+			privateKey, err := vault.GetPrivateKey(addr)
+
+			if err != nil {
+				log.Logger().Panicf("could not get private key with err: %v", err)
+			}
+
+			resp, err := client.ClaimSlp(context.Background(), utils.RoninAddrToEthAddr(addr), privateKey)
+
+			if err != nil {
+				log.Logger().Panicf("Error occurred getting claimable amount %v", err)
+			}
+
+			log.Logger().Printf("Claim tx %v", resp)
+		},
+	}
+
+	axieClaimableSlp.Flags().String("ronin-address", "", "Ronin address to check for claimable slp")
+	axieClaimableSlp.MarkFlagRequired("ronin-address")
+
+	axieClaimableSlp.PersistentFlags().String("secrets-file", types.DefaultSecretsFileName, "Secrets file with array of private keys")
+
+	return axieClaimableSlp
 }
 
 type StartFlags struct {
@@ -144,27 +296,10 @@ func startEarnAllianceCommander() *cobra.Command {
 			setupLoggerFlags(cmd)
 			startFlags := getStartFlags(cmd)
 
-			vault, err := vault.New(startFlags.SecretsFile)
+			err, c := createController(cmd, startFlags)
 
 			if err != nil {
-				log.Logger().Panicf("Error occured starting earn alliance commander %v", err)
-			}
-
-			client, err := client.New()
-
-			if err != nil {
-				log.Logger().Panicf("Error occured starting earn alliance commander %v", err)
-			}
-
-			var c controller.Controller
-
-			if startFlags.DevMode == "" {
-				c, err = controller.New(vault, store.New(startFlags.EarnAllianceEndpoint), client)
-				if err != nil {
-					log.Logger().Panicf("Could not start earn alliance commander with err %v", err)
-				}
-			} else {
-				c = controller.NewDevController(startFlags.EarnAllianceEndpoint, startFlags.DevMode)
+				log.Logger().Panicf("Could not create controller %v", err)
 			}
 
 			server, err := server.New(c, startFlags.EarnAllianceEndpoint, startFlags.ClientId)
@@ -178,4 +313,31 @@ func startEarnAllianceCommander() *cobra.Command {
 	}
 
 	return startEarnManagementCommander
+}
+
+func createController(cmd *cobra.Command, startFlags StartFlags) (error, controller.Controller) {
+
+	vault, err := vault.New(startFlags.SecretsFile)
+
+	if err != nil {
+		log.Logger().Panicf("Error occured starting earn alliance commander %v", err)
+	}
+
+	client, err := client.New()
+
+	if err != nil {
+		log.Logger().Panicf("Error occured starting earn alliance commander %v", err)
+	}
+
+	var c controller.Controller
+
+	if startFlags.DevMode == "" {
+		c, err = controller.New(vault, store.New(startFlags.EarnAllianceEndpoint), client)
+		if err != nil {
+			log.Logger().Panicf("Could not start earn alliance commander with err %v", err)
+		}
+	} else {
+		c = controller.NewDevController(startFlags.EarnAllianceEndpoint, startFlags.DevMode)
+	}
+	return err, c
 }
