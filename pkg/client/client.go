@@ -44,6 +44,7 @@ type Client interface {
 	GetClaimableAmount(ctx context.Context, address string) (*ClaimableResponse, error)
 	ClaimSlp(ctx context.Context, address, privateKeyStr string) (string, error)
 	GetWalletTransactionHistory(address string) (*pkgTypes.WalletTransactionHistory, error)
+	GetClaimPayload(ctx context.Context, address, privateKeyStr string) (*ClaimableResponse, error)
 }
 
 type AxieClient struct {
@@ -279,34 +280,26 @@ func (c *AxieClient) GetRoninWalletBalance(ctx context.Context, tokenTypeAddress
 type T struct {
 }
 type ClaimableResponse struct {
+	ClientID          string `json:"clientID"`
+	ItemID            int    `json:"itemID"`
+	Name              string `json:"name"`
+	Description       string `json:"description"`
+	ImageUrl          string `json:"imageUrl"`
+	Total             int    `json:"total"`
 	BlockchainRelated struct {
 		Signature struct {
 			Signature string `json:"signature"`
-			// Total amount earned
-			Amount    int `json:"amount"`
-			Timestamp int `json:"timestamp"`
+			Amount    int    `json:"amount"`
+			Timestamp int    `json:"timestamp"`
 		} `json:"signature"`
-		// Current SLP in wallet
-		Balance int `json:"balance"`
-		// Last total amount claimed
+		Balance     int `json:"balance"`
 		Checkpoint  int `json:"checkpoint"`
-		BlockNumber int `json:"block_number"`
-	} `json:"blockchain_related"`
-	ClaimableTotal int `json:"claimable_total"`
-	// Last time this account was claimed
-	// NOTE: When a REQUEST to claim occurs, this will set last claim date, even if a claim event did not happen successfully
-	// Cannot use this as a last claim date
-	LastClaimedItemAt int `json:"last_claimed_item_at"`
-	RawTotal          int `json:"raw_total"`
-	RawClaimableTotal int `json:"raw_claimable_total"`
-	Item              struct {
-		Id          int    `json:"id"`
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		ImageUrl    string `json:"image_url"`
-		UpdatedAt   int    `json:"updated_at"`
-		CreatedAt   int    `json:"created_at"`
-	} `json:"item"`
+		BlockNumber int `json:"blockNumber"`
+	} `json:"blockchainRelated"`
+	ClaimableTotal    int `json:"claimableTotal"`
+	LastClaimedItemAt int `json:"lastClaimedItemAt"`
+	RawTotal          int `json:"rawTotal"`
+	RawClaimableTotal int `json:"rawClaimableTotal"`
 }
 
 // The following functions are so funny, it makes me think im not sure whats going on OR the devs suck
@@ -332,7 +325,7 @@ func (c ClaimableResponse) HoursToNextClaim() float64 {
 func (c *AxieClient) GetClaimableAmount(ctx context.Context, address string) (*ClaimableResponse, error) {
 	var resp ClaimableResponse
 	respBytes, err := utils.CallGetHttpApi(fmt.Sprintf("https://game-api-pre.skymavis.com/v1/players/%s/items/1",
-		address,
+		utils.RoninAddrToEthAddr(address),
 	), nil)
 
 	if err != nil {
@@ -343,7 +336,7 @@ func (c *AxieClient) GetClaimableAmount(ctx context.Context, address string) (*C
 		return nil, err
 	}
 
-	//log.Printf("claim resp %v", resp)
+	//log.Printf("claim resp %v %s", resp, utils.RoninAddrToEthAddr(address))
 
 	return &resp, nil
 }
@@ -354,7 +347,7 @@ type GraphqlRequest struct {
 	Query         string                 `json:"query"`
 }
 
-func (c *AxieClient) getClaimPayload(ctx context.Context, address, privateKeyStr string) (*ClaimableResponse, error) {
+func (c *AxieClient) GetClaimPayload(ctx context.Context, address, privateKeyStr string) (*ClaimableResponse, error) {
 	randomMsg, err := createRandomMessage()
 
 	if err != nil {
@@ -398,7 +391,7 @@ func (c *AxieClient) ClaimSlp(
 		return "", err
 	}
 
-	claimResponse, err := c.getClaimPayload(ctx, address, privateKeyStr)
+	claimResponse, err := c.GetClaimPayload(ctx, address, privateKeyStr)
 
 	if err != nil {
 		return "", err
@@ -452,7 +445,7 @@ func (c *AxieClient) getJwtAccessToken(randomMsg, address, privateKeyStr string)
 		Variables: map[string]interface{}{
 			"input": map[string]string{
 				"mainnet":   "ronin",
-				"owner":     address,
+				"owner":     utils.RoninAddrToEthAddr(address),
 				"message":   randomMsg,
 				"signature": hexutil.Encode(signedMsgBytes),
 			},
