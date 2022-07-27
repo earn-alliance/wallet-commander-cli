@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/earn-alliance/wallet-commander-cli/pkg/api"
 	"github.com/hasura/go-graphql-client"
+	"time"
 )
 
 var WallterCommanderSubscription struct {
@@ -30,6 +31,20 @@ func NewUpdateCommandResultsVars(
 		"transactionHash": graphql.String(transactionHash),
 		"status":          wallet_commander_command_statuses_enum(status),
 		"message":         graphql.String(statusMessage),
+	}
+}
+
+var UpsertWalletCommanderActiveClients struct {
+	InsertWalletCommanderActiveClients struct {
+		Client_Id string
+	} `graphql:"insert_wallet_commander_active_clients_one(object:{ client_id: $clientId, last_ping_time: $lastPingTime, last_connected_status: $connected }, on_conflict:{ constraint:wallet_commander_active_clients_pkey, update_columns:[client_id,last_ping_time,last_connected_status]})"`
+}
+
+func NewUpsertWalletCommanderActiveClientVars(clientId string, connected bool) map[string]interface{} {
+	return map[string]interface{}{
+		"clientId":     uuid(clientId),
+		"connected":    graphql.Boolean(connected),
+		"lastPingTime": timestamptz(time.Now().Format("2006-01-02 15:04:05")),
 	}
 }
 

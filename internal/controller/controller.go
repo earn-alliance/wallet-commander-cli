@@ -13,6 +13,7 @@ import (
 
 type Controller interface {
 	ProcessWalletCommand(command query.WalletCommanderCommand)
+	UpdateClientConnected(clientId string, conncted bool)
 }
 
 type WalletCommanderController struct {
@@ -27,6 +28,10 @@ func New(vault vault.Vault, store store.Store, client client.Client) (Controller
 		vault:  vault,
 		store:  store,
 	}, nil
+}
+
+func (w *WalletCommanderController) UpdateClientConnected(clientId string, connected bool) {
+	w.store.UpdateWalletCommanderActiveClient(clientId, connected)
 }
 
 func (w *WalletCommanderController) ProcessWalletCommand(command query.WalletCommanderCommand) {

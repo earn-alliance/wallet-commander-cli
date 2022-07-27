@@ -11,10 +11,17 @@ import (
 type Store interface {
 	UpdateWalletCommandTransactionSuccess(id string, transaction string)
 	UpdateWalletCommandTransactionError(id string, status api.WalletCommanderStatus, msg string)
+	UpdateWalletCommanderActiveClient(clientId string, connected bool)
 }
 
 type WalletCommanderStore struct {
 	client *graphql.Client
+}
+
+func New(graphqlServerEndpoint string) Store {
+	return &WalletCommanderStore{
+		client: graphql.NewClient(graphqlServerEndpoint, nil),
+	}
 }
 
 func (w *WalletCommanderStore) UpdateWalletCommandTransactionSuccess(id string, transaction string) {
@@ -43,8 +50,13 @@ func (w *WalletCommanderStore) UpdateWalletCommandTransactionError(id string, st
 	}
 }
 
-func New(graphqlServerEndpoint string) Store {
-	return &WalletCommanderStore{
-		client: graphql.NewClient(graphqlServerEndpoint, nil),
+func (w *WalletCommanderStore) UpdateWalletCommanderActiveClient(clientId string, connected bool) {
+	err := w.client.Mutate(context.Background(), &query.UpsertWalletCommanderActiveClients, query.NewUpsertWalletCommanderActiveClientVars(
+		clientId,
+		connected,
+	))
+
+	if err != nil {
+		log.Logger().Errorf("could not update wallet command active clients to a errored state with err: %v", err)
 	}
 }
