@@ -6,7 +6,10 @@ import (
 	"github.com/earn-alliance/wallet-commander-cli/internal/log"
 	"github.com/earn-alliance/wallet-commander-cli/internal/query"
 	"github.com/hasura/go-graphql-client"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -64,11 +67,28 @@ func (w *WalletCommanderServer) Start() {
 		log.Logger().Panicf("Error creating wallet commander subscriotion %v", err)
 	}
 
+	go w.runUpdateActiveClientLoopAsync()
+
 	if err := w.client.Run(); err != nil {
 		log.Logger().Errorf("Error running graphql subscription client %v", err)
 	}
 }
 
+func (w *WalletCommanderServer) runUpdateActiveClientLoopAsync() {
+	c := make(chan os.Signal, 1) // we need to reserve to buffer size 1, so the notifier are not blocked
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	w.controller.UpdateClientConnected(w.clientId, true)
+
+	for {
+		select {
+		case <-c:
+			w.controller.UpdateClientConnected(w.clientId, false)
+			return
+		case <-time.After(15 * time.Second):
+			w.controller.UpdateClientConnected(w.clientId, true)
+		}
+	}
+}
 func (w *WalletCommanderServer) registerWalletCommanderCommandsSubscription() error {
 	_, err := w.client.Subscribe(
 		&query.WallterCommanderSubscription,

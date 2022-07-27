@@ -26,6 +26,10 @@ func NewDevController(serverEndpoint string, mode types.DevMockMode) Controller 
 	}
 }
 
+func (d *DevController) UpdateClientConnected(clientId string, connected bool) {
+	d.store.UpdateWalletCommanderActiveClient(clientId, connected)
+}
+
 func (d *DevController) ProcessWalletCommand(command query.WalletCommanderCommand) {
 	commandId := command.Id.(string)
 	log.Logger().Infof("Dev Server in mode %s is processing command %s", d.mode, commandId)
