@@ -65,8 +65,8 @@ type TransferAxiePayload struct {
 
 func (t TransferPayload) Validate() error {
 	return validation.ValidateStruct(&t,
-		validation.Field(t.To, validation.Required, validation.NilOrNotEmpty),
-		validation.Field(t.From, validation.Required, validation.NilOrNotEmpty))
+		validation.Field(&t.To, validation.Required, validation.NilOrNotEmpty),
+		validation.Field(&t.From, validation.Required, validation.NilOrNotEmpty))
 }
 
 func (t TransferAxiePayload) Validate() error {
@@ -75,6 +75,6 @@ func (t TransferAxiePayload) Validate() error {
 	}
 
 	return validation.ValidateStruct(&t,
-		validation.Field(t.AxieId, validation.Required, validation.Min(1)),
+		validation.Field(&t.AxieId, validation.Required, validation.Min(1)),
 	)
 }
