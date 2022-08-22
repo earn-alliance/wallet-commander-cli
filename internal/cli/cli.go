@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"github.com/earn-alliance/wallet-commander-cli/internal/controller"
 	"github.com/earn-alliance/wallet-commander-cli/internal/log"
 	"github.com/earn-alliance/wallet-commander-cli/internal/server"
@@ -9,9 +11,11 @@ import (
 	"github.com/earn-alliance/wallet-commander-cli/internal/types"
 	"github.com/earn-alliance/wallet-commander-cli/internal/vault"
 	"github.com/earn-alliance/wallet-commander-cli/pkg/client"
+	"github.com/earn-alliance/wallet-commander-cli/pkg/earnalliance"
 	"github.com/earn-alliance/wallet-commander-cli/pkg/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"strconv"
 )
 
 func Run() {
@@ -94,6 +98,7 @@ func getAxieCommand() *cobra.Command {
 		getAxieClaimableSlpCommand(),
 		getAxieClaimPayloadCommand(),
 		getAxieClaimCommand(),
+		createAccountsCommand(),
 	)
 
 	return axieCmd
@@ -230,6 +235,56 @@ func getAxieClaimCommand() *cobra.Command {
 	axieClaimableSlp.PersistentFlags().String("secrets-file", types.DefaultSecretsFileName, "Secrets file with array of private keys")
 
 	return axieClaimableSlp
+}
+
+func createAccountsCommand() *cobra.Command {
+	command := &cobra.Command{
+		Use:   "create-accounts NUM",
+		Short: "Create Axie Infinity Login Accounts",
+		Long:  "Create Axie Infinity Login Accounts for a client. This command requires client-id",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			setupLoggerFlags(cmd)
+
+			clientId, err := cmd.Flags().GetString("client-id")
+			secretsFile, err := cmd.Flags().GetString("secrets-file")
+
+			if err != nil {
+				//log.Logger().Errorf("Error: client-id flag not setup correctly %v", err)
+				return errors.New("client-id flag not setup correctly")
+			}
+
+			if len(args) < 1 {
+				return errors.New("incorrect number of arguments")
+			}
+
+			count, err := strconv.Atoi(args[0])
+
+			if err != nil || count <= 0 {
+				return errors.New(fmt.Sprintf("Error: Incorrect number of accounts value: %s", args[0]))
+			}
+
+			graphqlServerEndpoint, err := cmd.Flags().GetString("earn-alliance-endpoint")
+
+			vault, err := vault.New(secretsFile)
+
+			if err != nil {
+				log.Logger().Panicf("Error occured starting earn alliance commander %v", err)
+			}
+
+			eaClient, err := earnalliance.New(graphqlServerEndpoint, clientId)
+			if err != nil {
+				return errors.New(fmt.Sprintf("Internal Error: could not create earn alliance client with err %v", err))
+			}
+			return eaClient.CreateAxieInfinityAccount(count, vault)
+		},
+	}
+
+	command.PersistentFlags().String("earn-alliance-endpoint", types.EarnManagementServerEndpoint, "Earn Management server endpoint")
+	command.PersistentFlags().String("client-id", "", "Earn Management account Client Id (required)")
+	command.PersistentFlags().String("secrets-file", types.DefaultSecretsFileName, "Secrets file with array of private keys")
+	command.MarkPersistentFlagRequired("client-id")
+
+	return command
 }
 
 type StartFlags struct {
