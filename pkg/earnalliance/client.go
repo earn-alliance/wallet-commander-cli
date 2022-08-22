@@ -88,9 +88,9 @@ func (c *EarnAllianceClient) CreateAxieInfinityAccount(count int, vault vault.Va
 		}
 	}
 
-	log.Logger().Infof("[VAULT] Successfully updated secrets file. %d wallets in total", vault.GetWalletCounts())
 	log.Logger().Infof("[QUEUE] Successfully enqueued %d Axie Infinity account creation request", count)
-
+	log.Logger().Infof("[VAULT] Successfully updated secrets file. %d wallets in total", vault.GetWalletCounts())
+	log.Logger().Infof("[VAULT] Make sure to backup this file with your new private keys!")
 	return nil
 }
 

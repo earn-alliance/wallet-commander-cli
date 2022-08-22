@@ -239,9 +239,9 @@ func getAxieClaimCommand() *cobra.Command {
 
 func createAccountsCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "create-accounts NUM",
-		Short: "Create Axie Infinity Login Accounts",
 		Long:  "Create Axie Infinity Login Accounts for a client. This command requires client-id",
+		Use:   "create-accounts {number-of-accounts}",
+		Short: "Create verified Axie Infinity login accounts",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			setupLoggerFlags(cmd)
 
