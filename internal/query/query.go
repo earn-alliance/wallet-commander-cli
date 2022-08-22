@@ -48,6 +48,33 @@ func NewUpsertWalletCommanderActiveClientVars(clientId string, connected bool) m
 	}
 }
 
+type AxieInfinityAccount struct {
+	RoninWallet string
+	AccessToken string
+}
+
+var InsertAxieInfinityAccounts struct {
+	InsertAxieInfinityAccounts struct {
+		Affected_Rows int
+	} `graphql:"insert_axie_infinity_accounts(objects: $objects)"`
+}
+
+func NewInsertAxieInfinityAccountsVars(clientId string, accounts []AxieInfinityAccount) map[string]interface{} {
+	var objects []axie_infinity_accounts_insert_input
+
+	for _, acc := range accounts {
+		objects = append(objects, axie_infinity_accounts_insert_input{
+			"client_id":    uuid(clientId),
+			"ronin_wallet": graphql.String(acc.RoninWallet),
+			"access_token": graphql.String(acc.AccessToken),
+		})
+	}
+
+	return map[string]interface{}{
+		"objects": objects,
+	}
+}
+
 type WalletCommanderCommand struct {
 	Id        graphql.ID
 	Operation graphql.String
