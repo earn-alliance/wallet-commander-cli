@@ -10,10 +10,14 @@ import (
 
 type Vault interface {
 	GetPrivateKey(roninWallet string) (string, error)
+	AddRoninWallet(roninWallet string, privateKey string) bool
+	GetWalletCounts() int
+	Save() error
 }
 
 type WalletCommanderVault struct {
-	secretsMap map[string]string
+	secretsFile string
+	secretsMap  map[string]string
 }
 
 func New(secretsFile string) (Vault, error) {
@@ -33,9 +37,31 @@ func New(secretsFile string) (Vault, error) {
 	log.Logger().Infof("[VAULT] Successfully loaded %d wallets and their secrets", len(secretsMap))
 
 	return &WalletCommanderVault{
-		secretsMap: secretsMap,
+		secretsFile: secretsFile,
+		secretsMap:  secretsMap,
 	}, nil
 
+}
+
+func (w WalletCommanderVault) AddRoninWallet(roninWallet string, privateKey string) bool {
+	if _, ok := w.secretsMap[roninWallet]; ok {
+		return false // wallet already exists, don't update
+	}
+
+	w.secretsMap[roninWallet] = privateKey
+
+	return true
+}
+
+func (w WalletCommanderVault) Save() error {
+
+	secretsJsonBytes, err := json.MarshalIndent(w.secretsMap, "", "    ")
+
+	if err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(w.secretsFile, secretsJsonBytes, 0660)
 }
 
 func (w WalletCommanderVault) GetPrivateKey(roninWallet string) (string, error) {
@@ -44,4 +70,8 @@ func (w WalletCommanderVault) GetPrivateKey(roninWallet string) (string, error) 
 	} else {
 		return "", errors.New("roninWallet does not exist in secrets map")
 	}
+}
+
+func (w WalletCommanderVault) GetWalletCounts() int {
+	return len(w.secretsMap)
 }
