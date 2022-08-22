@@ -1,6 +1,7 @@
 package earnalliance
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/earn-alliance/wallet-commander-cli/internal/log"
