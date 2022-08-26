@@ -45,6 +45,7 @@ type Client interface {
 	ClaimSlp(ctx context.Context, address, privateKeyStr string) (string, error)
 	GetWalletTransactionHistory(address string) (*pkgTypes.WalletTransactionHistory, error)
 	GetClaimPayload(ctx context.Context, address, privateKeyStr string) (*ClaimableResponse, error)
+	CreateAccessToken(address, privateKeyStr string) (string, error)
 }
 
 type AxieClient struct {
@@ -416,6 +417,16 @@ func (c *AxieClient) ClaimSlp(
 	}
 
 	return tx.Hash().String(), nil
+}
+
+func (c *AxieClient) CreateAccessToken(address, privateKeyStr string) (string, error) {
+	randomMsg, err := createRandomMessage()
+
+	if err != nil {
+		return "", err
+	}
+
+	return c.getJwtAccessToken(randomMsg, address, privateKeyStr)
 }
 
 func (c *AxieClient) getJwtAccessToken(randomMsg, address, privateKeyStr string) (string, error) {

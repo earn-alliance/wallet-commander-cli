@@ -2,7 +2,10 @@ package wallet
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 	"strings"
 
 	"github.com/earn-alliance/wallet-commander-cli/pkg/abi"
@@ -25,6 +28,12 @@ type Balance struct {
 	RON  uint64
 }
 
+type Wallet struct {
+	PrivateKey string
+	PublicKey  string
+	Address    string
+}
+
 func New() (*Client, error) {
 	rpcClient, err := rpc.DialHTTP(constants.RONIN_PROVIDER_RPC_URI)
 
@@ -37,6 +46,32 @@ func New() (*Client, error) {
 	c := ethclient.NewClient(rpcClient)
 
 	return &Client{ethClient: c}, nil
+}
+
+func (c *Client) CreateWallet() (*Wallet, error) {
+	privateKey, err := crypto.GenerateKey()
+	if err != nil {
+		return nil, err
+	}
+
+	privateKeyBytes := crypto.FromECDSA(privateKey)
+
+	publicKey := privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, errors.New("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
+	}
+
+	publicKeyBytes := crypto.FromECDSAPub(publicKeyECDSA)
+
+	address := crypto.PubkeyToAddress(*publicKeyECDSA)
+
+	return &Wallet{
+		PrivateKey: hexutil.Encode(privateKeyBytes),
+		PublicKey:  hexutil.Encode(publicKeyBytes),
+		Address:    hexutil.Encode(address.Bytes()),
+	}, nil
+
 }
 
 func getAddress(address string) common.Address {
