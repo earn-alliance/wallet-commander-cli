@@ -20,28 +20,18 @@ type EarnAllianceClient struct {
 	clientId     string
 }
 
-func New(graphqlServerEndpoint, clientId string) (*EarnAllianceClient, error) {
-	axieClient, err := client.New()
-	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Internal Error: could not create axie client with err %v", err))
-	}
-
-	walletClient, err := wallet.New()
-	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Internal Error: could not create wallet client with err %v", err))
-	}
-
+func New(clientId string, axieClient client.Client, walletClient *wallet.Client, gqlClient *graphql.Client) *EarnAllianceClient {
 	return &EarnAllianceClient{
-		gqlClient:    graphql.NewClient(graphqlServerEndpoint, nil),
+		gqlClient:    gqlClient,
 		clientId:     clientId,
 		axieClient:   axieClient,
 		walletClient: walletClient,
-	}, nil
+	}
 }
 
 func (c *EarnAllianceClient) CreateAxieInfinityAccount(count int, vault vault.Vault) error {
 
-	var batchSize = 5
+	var batchSize = 100
 	var accounts []query.AxieInfinityAccount
 
 	for i := 0; i < count; i++ {
