@@ -81,6 +81,19 @@ type WalletCommanderCommand struct {
 	Payload   json.RawMessage
 }
 
+func (w WalletCommanderCommand) UnmarshalCreateAxieAccountPayload() (*api.CreateAxieAccountPayload, error) {
+	if string(w.Operation) != string(api.OperationCreateAxieAccount) {
+		return nil, errors.New("cannot unmarshal CreateAxieAccountPayload because operation type is not CREATE_AXIE_ACCOUNT")
+	}
+
+	var createAxieAccountPayload api.CreateAxieAccountPayload
+	if err := json.Unmarshal(w.Payload, &createAxieAccountPayload); err != nil {
+		return nil, err
+	}
+
+	return &createAxieAccountPayload, nil
+}
+
 func (w WalletCommanderCommand) UnmarshalClaimSlpPayload() (*api.ClaimSlpPayload, error) {
 	if string(w.Operation) != string(api.OperationClaimSLP) {
 		return nil, errors.New("cannot unmarshal ClaimSlpPayload because operation type is not CLAIM_SLP")
