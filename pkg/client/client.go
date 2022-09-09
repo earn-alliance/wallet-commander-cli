@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/patrickmn/go-cache"
 	"log"
+	"sync"
 	"math/big"
 	"math/rand"
 	"time"
@@ -61,6 +62,7 @@ type AxieClient struct {
 
 	jwtStore   store.JwtStore
 	nonceCache *cache.Cache
+	mu         sync.RWMutex
 }
 
 func (c *AxieClient) GetWalletTransactionHistory(address string) (*pkgTypes.WalletTransactionHistory, error) {
@@ -178,11 +180,16 @@ func (c *AxieClient) createTransactOps(ctx context.Context, privateKeyStr string
 	}
 
 	fromAddress := crypto.PubkeyToAddress(privateKey.PublicKey)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	nonce, err := c.nonceAt(ctx, fromAddress)
 
 	if err != nil {
 		return nil, err
 	}
+
+	_ = c.incrNonce(ctx, fromAddress)
 
 	ops, err := bind.NewKeyedTransactorWithChainID(privateKey, constants.RONIN_CHAIN_ID)
 
@@ -247,8 +254,6 @@ func (c *AxieClient) TransferSlp(ctx context.Context, privateKey, to string, amo
 		return "", err
 	}
 
-	c.incrNonce(ctx, ops.From)
-
 	return tx.Hash().String(), nil
 }
 
@@ -264,8 +269,6 @@ func (c *AxieClient) TransferAxie(ctx context.Context, privateKey, to string, ax
 	if err != nil {
 		return "", err
 	}
-
-	c.incrNonce(ctx, ops.From)
 
 	return tx.Hash().String(), err
 }
@@ -283,8 +286,6 @@ func (c *AxieClient) BreedAxie(ctx context.Context, privateKey string, dadAxieId
 	if err != nil {
 		return "", err
 	}
-
-	c.incrNonce(ctx, ops.From)
 
 	return tx.Hash().String(), err
 }
@@ -456,8 +457,6 @@ func (c *AxieClient) ClaimSlp(
 	if err != nil {
 		return "", err
 	}
-
-	c.incrNonce(ctx, ops.From)
 
 	return tx.Hash().String(), nil
 }
