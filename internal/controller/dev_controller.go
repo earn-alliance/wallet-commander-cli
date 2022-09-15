@@ -13,7 +13,7 @@ type DevController struct {
 	mode  types.DevMockMode
 }
 
-func NewDevController(serverEndpoint string, mode types.DevMockMode) Controller {
+func NewDevController(store store.Store, mode types.DevMockMode) Controller {
 	if mode == "" {
 		panic("Invalid dev mock mode set in env vars!")
 	}
@@ -21,7 +21,7 @@ func NewDevController(serverEndpoint string, mode types.DevMockMode) Controller 
 	log.Logger().Infof("Server has been configured in DEV_MODE with the setting of %s", mode)
 
 	return &DevController{
-		store: store.New(serverEndpoint),
+		store: store,
 		mode:  mode,
 	}
 }

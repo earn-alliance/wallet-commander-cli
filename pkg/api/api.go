@@ -12,6 +12,7 @@ const (
 	OperationCancelAxieAuction WalletCommanderOperation = "CANCEL_AXIE_AUCTION"
 	OperationHatchAxie         WalletCommanderOperation = "HATCH_AXIE"
 	OperationClaimSLP          WalletCommanderOperation = "CLAIM_SLP"
+	OperationCreateAxieAccount WalletCommanderOperation = "CREATE_AXIE_ACCOUNT"
 )
 
 type WalletCommanderStatus string
@@ -37,6 +38,10 @@ const (
 
 type ClaimSlpPayload struct {
 	AddressToClaim string `json:"address_to_claim"`
+}
+
+type CreateAxieAccountPayload struct {
+	Count int `json:"count"`
 }
 
 type TransferSlpType string

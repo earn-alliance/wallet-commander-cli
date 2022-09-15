@@ -18,9 +18,9 @@ type WalletCommanderStore struct {
 	client *graphql.Client
 }
 
-func New(graphqlServerEndpoint string) Store {
+func New(gqlClient *graphql.Client) Store {
 	return &WalletCommanderStore{
-		client: graphql.NewClient(graphqlServerEndpoint, nil),
+		client: gqlClient,
 	}
 }
 

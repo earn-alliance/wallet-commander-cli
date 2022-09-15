@@ -8,6 +8,7 @@ import (
 	"github.com/earn-alliance/wallet-commander-cli/internal/vault"
 	"github.com/earn-alliance/wallet-commander-cli/pkg/api"
 	"github.com/earn-alliance/wallet-commander-cli/pkg/client"
+	"github.com/earn-alliance/wallet-commander-cli/pkg/earnalliance"
 	"github.com/earn-alliance/wallet-commander-cli/pkg/utils"
 )
 
@@ -17,16 +18,18 @@ type Controller interface {
 }
 
 type WalletCommanderController struct {
-	client client.Client
-	vault  vault.Vault
-	store  store.Store
+	client   client.Client
+	eaClient *earnalliance.EarnAllianceClient
+	vault    vault.Vault
+	store    store.Store
 }
 
-func New(vault vault.Vault, store store.Store, client client.Client) (Controller, error) {
+func New(vault vault.Vault, store store.Store, client client.Client, eaClient *earnalliance.EarnAllianceClient) (Controller, error) {
 	return &WalletCommanderController{
-		client: client,
-		vault:  vault,
-		store:  store,
+		client:   client,
+		eaClient: eaClient,
+		vault:    vault,
+		store:    store,
 	}, nil
 }
 
@@ -62,6 +65,13 @@ func (w *WalletCommanderController) ProcessWalletCommand(command query.WalletCom
 				"transfering axie id %d from %s to %s", command.Id, payload.AxieId, payload.From, payload.To)
 			w.transferAxie(commandIdStr, payload)
 		}
+	case string(api.OperationCreateAxieAccount):
+		if payload, err := command.UnmarshalCreateAxieAccountPayload(); err != nil {
+			w.store.UpdateWalletCommandTransactionError(commandIdStr, api.CommandStatusInvalidPayload, err.Error())
+		} else {
+			log.Logger().Infof("Processing create account command id %s for %s", command.Id, payload.Count)
+			w.createAxieAccount(commandIdStr, payload)
+		}
 	}
 }
 
@@ -87,6 +97,18 @@ func (w *WalletCommanderController) getPrivateKey(commandId, address string) (st
 	}
 
 	return key, err
+}
+
+func (w *WalletCommanderController) createAxieAccount(commandId string, payload *api.CreateAxieAccountPayload) {
+	err := w.eaClient.CreateAxieInfinityAccount(payload.Count, w.vault)
+
+	if err == nil {
+		logWalletCommanderSuccess(api.OperationCreateAxieAccount, commandId, "")
+	} else {
+		logWalletCommanderError(api.OperationCreateAxieAccount, commandId, err)
+	}
+
+	w.processTransactionResult(commandId, "", err)
 }
 
 func (w *WalletCommanderController) claimSlp(commandId string, payload *api.ClaimSlpPayload) {
@@ -132,10 +154,19 @@ func (w *WalletCommanderController) transferAxie(commandId string, payload *api.
 }
 
 func logWalletCommanderSuccess(operation api.WalletCommanderOperation, commandId, tx string) {
-	log.Logger().Infof("Successfully signed transaction to %s for command id %s. Transaction id is: %s",
+	if len(tx) > 0 {
+		log.Logger().Infof("Successfully signed transaction to %s for command id %s. Transaction id is: %s",
+			operation,
+			commandId,
+			tx,
+		)
+
+		return
+	}
+	
+	log.Logger().Infof("Successfully executed %s for command id %s.",
 		operation,
 		commandId,
-		tx,
 	)
 }
 

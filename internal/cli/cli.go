@@ -13,6 +13,8 @@ import (
 	"github.com/earn-alliance/wallet-commander-cli/pkg/client"
 	"github.com/earn-alliance/wallet-commander-cli/pkg/earnalliance"
 	"github.com/earn-alliance/wallet-commander-cli/pkg/utils"
+	"github.com/earn-alliance/wallet-commander-cli/pkg/wallet"
+	"github.com/hasura/go-graphql-client"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"strconv"
@@ -265,17 +267,27 @@ func createAccountsCommand() *cobra.Command {
 
 			graphqlServerEndpoint, err := cmd.Flags().GetString("earn-alliance-endpoint")
 
-			vault, err := vault.New(secretsFile)
+			clientVault, err := vault.New(secretsFile)
 
 			if err != nil {
 				log.Logger().Panicf("Error occured starting earn alliance commander %v", err)
 			}
 
-			eaClient, err := earnalliance.New(graphqlServerEndpoint, clientId)
+			axieClient, err := client.New()
+
 			if err != nil {
-				return errors.New(fmt.Sprintf("Internal Error: could not create earn alliance client with err %v", err))
+				log.Logger().Panicf("Error occured starting earn alliance commander %v", err)
 			}
-			return eaClient.CreateAxieInfinityAccount(count, vault)
+
+			walletClient, err := wallet.New()
+			if err != nil {
+				log.Logger().Panicf("Error occured starting earn alliance commander %v", err)
+			}
+
+			gqlClient := graphql.NewClient(graphqlServerEndpoint, nil)
+			eaClient := earnalliance.New(clientId, axieClient, walletClient, gqlClient)
+
+			return eaClient.CreateAxieInfinityAccount(count, clientVault)
 		},
 	}
 
@@ -384,15 +396,23 @@ func createController(cmd *cobra.Command, startFlags StartFlags) (error, control
 		log.Logger().Panicf("Error occured starting earn alliance commander %v", err)
 	}
 
+	walletClient, err := wallet.New()
+	if err != nil {
+		log.Logger().Panicf("Error occured starting earn alliance commander %v", err)
+	}
+
+	gqlClient := graphql.NewClient(startFlags.EarnAllianceEndpoint, nil)
+
+	eaClient := earnalliance.New(startFlags.ClientId, client, walletClient, gqlClient)
 	var c controller.Controller
 
 	if startFlags.DevMode == "" {
-		c, err = controller.New(vault, store.New(startFlags.EarnAllianceEndpoint), client)
+		c, err = controller.New(vault, store.New(gqlClient), client, eaClient)
 		if err != nil {
 			log.Logger().Panicf("Could not start earn alliance commander with err %v", err)
 		}
 	} else {
-		c = controller.NewDevController(startFlags.EarnAllianceEndpoint, startFlags.DevMode)
+		c = controller.NewDevController(store.New(gqlClient), startFlags.DevMode)
 	}
 	return err, c
 }
