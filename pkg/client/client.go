@@ -18,7 +18,9 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/patrickmn/go-cache"
 	"log"
+	"sync"
 	"math/big"
 	"math/rand"
 	"time"
@@ -58,7 +60,9 @@ type AxieClient struct {
 	axieClient        *abi.Axie
 	marketplaceClient *abi.Marketplace
 
-	jwtStore store.JwtStore
+	jwtStore   store.JwtStore
+	nonceCache *cache.Cache
+	mu         sync.RWMutex
 }
 
 func (c *AxieClient) GetWalletTransactionHistory(address string) (*pkgTypes.WalletTransactionHistory, error) {
@@ -156,16 +160,19 @@ func New() (Client, error) {
 		return nil, err
 	}
 
+	nonceCache := cache.New(15*time.Minute, 20*time.Minute)
+
 	return &AxieClient{
 		freeEthClient:     freeEthClient,
 		ethClient:         ethClient,
 		slpClient:         slpClient,
 		axieClient:        axieClient,
 		marketplaceClient: marketplaceClient,
+		nonceCache:        nonceCache,
 	}, nil
 }
 
-func createTransactOps(ctx context.Context, client *ethclient.Client, privateKeyStr string) (*bind.TransactOpts, error) {
+func (c *AxieClient) createTransactOps(ctx context.Context, privateKeyStr string) (*bind.TransactOpts, error) {
 	privateKey, err := crypto.ToECDSA(common.FromHex(privateKeyStr))
 
 	if err != nil {
@@ -173,11 +180,16 @@ func createTransactOps(ctx context.Context, client *ethclient.Client, privateKey
 	}
 
 	fromAddress := crypto.PubkeyToAddress(privateKey.PublicKey)
-	nonce, err := client.NonceAt(ctx, fromAddress, nil)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	nonce, err := c.nonceAt(ctx, fromAddress)
 
 	if err != nil {
 		return nil, err
 	}
+
+	_ = c.incrNonce(ctx, fromAddress)
 
 	ops, err := bind.NewKeyedTransactorWithChainID(privateKey, constants.RONIN_CHAIN_ID)
 
@@ -199,8 +211,38 @@ func createTransactOps(ctx context.Context, client *ethclient.Client, privateKey
 	return ops, nil
 }
 
+func (c *AxieClient) nonceAt(ctx context.Context, address common.Address) (uint64, error) {
+	nonce, err := c.freeEthClient.NonceAt(ctx, address, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	val, found := c.nonceCache.Get(address.String())
+	if !found {
+		return nonce, nil
+	}
+
+	cache := val.(uint64)
+
+	if nonce > cache {
+		return nonce, nil
+	} else {
+		return cache, nil
+	}
+}
+
+func (c *AxieClient) incrNonce(ctx context.Context, address common.Address) error {
+	nonce, err := c.nonceAt(ctx, address)
+	if err != nil {
+		return err
+	}
+
+	c.nonceCache.Set(address.String(), nonce+1, cache.DefaultExpiration)
+	return nil
+}
+
 func (c *AxieClient) TransferSlp(ctx context.Context, privateKey, to string, amount int) (string, error) {
-	ops, err := createTransactOps(ctx, c.freeEthClient, privateKey)
+	ops, err := c.createTransactOps(ctx, privateKey)
 
 	if err != nil {
 		return "", err
@@ -216,7 +258,7 @@ func (c *AxieClient) TransferSlp(ctx context.Context, privateKey, to string, amo
 }
 
 func (c *AxieClient) TransferAxie(ctx context.Context, privateKey, to string, axieId int) (string, error) {
-	ops, err := createTransactOps(ctx, c.freeEthClient, privateKey)
+	ops, err := c.createTransactOps(ctx, privateKey)
 
 	if err != nil {
 		return "", err
@@ -233,7 +275,7 @@ func (c *AxieClient) TransferAxie(ctx context.Context, privateKey, to string, ax
 
 // TODO: Test
 func (c *AxieClient) BreedAxie(ctx context.Context, privateKey string, dadAxieId, momAxieId int) (string, error) {
-	ops, err := createTransactOps(ctx, c.freeEthClient, privateKey)
+	ops, err := c.createTransactOps(ctx, privateKey)
 
 	if err != nil {
 		return "", err
@@ -386,12 +428,6 @@ func (c *AxieClient) GetClaimPayload(ctx context.Context, address, privateKeyStr
 func (c *AxieClient) ClaimSlp(
 	ctx context.Context, address, privateKeyStr string) (string, error) {
 
-	ops, err := createTransactOps(ctx, c.freeEthClient, privateKeyStr)
-
-	if err != nil {
-		return "", err
-	}
-
 	claimResponse, err := c.GetClaimPayload(ctx, address, privateKeyStr)
 
 	if err != nil {
@@ -402,6 +438,12 @@ func (c *AxieClient) ClaimSlp(
 		return "", errors.New(fmt.Sprintf(
 			"cannot claim. hours to next claim %f", claimResponse.HoursToNextClaim(),
 		))
+	}
+
+	ops, err := c.createTransactOps(ctx, privateKeyStr)
+
+	if err != nil {
+		return "", err
 	}
 
 	tx, err := c.slpClient.Checkpoint(
