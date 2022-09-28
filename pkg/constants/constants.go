@@ -8,6 +8,8 @@ const (
 	AXS_CONTRACT            = "0x97a9107c1793bc407d6f527b77e7fff4d812bece"
 	AXIE_CONTRACT           = "0x32950db2a7164ae833121501c797d79e7b79d74c"
 	MARKETPLACE_CONTRACT    = "0x213073989821f738a7ba3520c3d31a1f9ad31bbd"
+	PORTAL_CONTRACT         = "0x36b628e771b0ca12a135e0a7b8e0394f99dce95b"
+	USDC_CONTRACT           = "0x0b7007c13325c48911f73a2dad5fa5dcbf808adc"
 	RONIN_PROVIDER_FREE_URI = "https://proxy.roninchain.com/free-gas-rpc"
 	RONIN_PROVIDER_RPC_URI  = "https://api.roninchain.com/rpc"
 
