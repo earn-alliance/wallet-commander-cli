@@ -113,7 +113,7 @@ func (w *WalletCommanderController) createAxieAccount(commandId string, payload 
 
 func (w *WalletCommanderController) claimSlp(commandId string, payload *api.ClaimSlpPayload) {
 	if key, err := w.getPrivateKey(commandId, payload.AddressToClaim); err == nil {
-		tx, err := w.client.ClaimSlp(context.Background(), utils.RoninAddrToEthAddr(payload.AddressToClaim), key)
+		tx, err := w.client.ClaimOriginSlp(context.Background(), utils.RoninAddrToEthAddr(payload.AddressToClaim), key)
 
 		if err == nil {
 			logWalletCommanderSuccess(api.OperationClaimSLP, commandId, tx)
@@ -163,7 +163,7 @@ func logWalletCommanderSuccess(operation api.WalletCommanderOperation, commandId
 
 		return
 	}
-	
+
 	log.Logger().Infof("Successfully executed %s for command id %s.",
 		operation,
 		commandId,

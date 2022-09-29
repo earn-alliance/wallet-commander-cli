@@ -20,9 +20,10 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/patrickmn/go-cache"
 	"log"
-	"sync"
 	"math/big"
 	"math/rand"
+	"strconv"
+	"sync"
 	"time"
 )
 
@@ -45,8 +46,10 @@ type Client interface {
 	GetRoninWalletBalance(ctx context.Context, tokenTypeAddress, address string) (float64, error)
 	GetClaimableAmount(ctx context.Context, address string) (*ClaimableResponse, error)
 	ClaimSlp(ctx context.Context, address, privateKeyStr string) (string, error)
+	ClaimOriginSlp(ctx context.Context, address, privateKeyStr string) (string, error)
 	GetWalletTransactionHistory(address string) (*pkgTypes.WalletTransactionHistory, error)
 	GetClaimPayload(ctx context.Context, address, privateKeyStr string) (*ClaimableResponse, error)
+	GetClaimOriginPayload(ctx context.Context, address, privateKeyStr string) (*OriginClaimableResponse, error)
 	CreateAccessToken(address, privateKeyStr string) (string, error)
 }
 
@@ -57,6 +60,7 @@ type AxieClient struct {
 	ethClient *ethclient.Client
 
 	slpClient         *abi.Slp
+	portalClient      *abi.Portal
 	axieClient        *abi.Axie
 	marketplaceClient *abi.Marketplace
 
@@ -160,6 +164,12 @@ func New() (Client, error) {
 		return nil, err
 	}
 
+	portalClient, err := abi.NewPortal(common.HexToAddress(constants.PORTAL_CONTRACT), freeEthClient)
+
+	if err != nil {
+		return nil, err
+	}
+
 	nonceCache := cache.New(15*time.Minute, 20*time.Minute)
 
 	return &AxieClient{
@@ -168,11 +178,16 @@ func New() (Client, error) {
 		slpClient:         slpClient,
 		axieClient:        axieClient,
 		marketplaceClient: marketplaceClient,
+		portalClient:      portalClient,
 		nonceCache:        nonceCache,
 	}, nil
 }
 
 func (c *AxieClient) createTransactOps(ctx context.Context, privateKeyStr string) (*bind.TransactOpts, error) {
+	return c.createTransactOpsWithGasLimitRange(ctx, privateKeyStr, 165313, 198888)
+}
+
+func (c *AxieClient) createTransactOpsWithGasLimitRange(ctx context.Context, privateKeyStr string, lowerGasLimit int64, upperGasLimit int64) (*bind.TransactOpts, error) {
 	privateKey, err := crypto.ToECDSA(common.FromHex(privateKeyStr))
 
 	if err != nil {
@@ -196,12 +211,13 @@ func (c *AxieClient) createTransactOps(ctx context.Context, privateKeyStr string
 	if err != nil {
 		return nil, err
 	}
+
 	rand.Seed(time.Now().UnixNano())
-	gasPrice := rand.Intn(198888-165313+1) + 165313
+	gasLimit := uint64(rand.Int63n(upperGasLimit-lowerGasLimit+1) + lowerGasLimit)
 
 	ops.Nonce = big.NewInt(int64(nonce))
 	ops.GasPrice = defaultGasPriceWei
-	ops.GasLimit = uint64(gasPrice)
+	ops.GasLimit = gasLimit
 	ops.Context = ctx
 
 	ops.Signer = func(address common.Address, transaction *types.Transaction) (*types.Transaction, error) {
@@ -423,6 +439,174 @@ func (c *AxieClient) GetClaimPayload(ctx context.Context, address, privateKeyStr
 	//log.Printf("claim resp %v", resp)
 
 	return &resp, nil
+}
+
+type OriginClaimableResponse struct {
+	ClientID     string `json:"clientID"`
+	ItemID       string `json:"itemID"`
+	Withdrawable int    `json:"withdrawable"`
+	Quantity     int    `json:"quantity"`
+	Item         struct {
+		Category      string `json:"category"`
+		Name          string `json:"name"`
+		Description   string `json:"description"`
+		Rarity        string `json:"rarity"`
+		TokenStandard string `json:"tokenStandard"`
+		TokenId       string `json:"tokenId"`
+	} `json:"item"`
+}
+
+type OriginWithdrawItemsResponse struct {
+	UserAddress string `json:"userAddress"`
+	Nonce       int64  `json:"nonce"`
+	ExpiredAt   int64  `json:"expiredAt"`
+	Signature   string `json:"signature"`
+	Items       []struct {
+		ItemId        string `json:"itemId"`
+		TokenStandard string `json:"tokenStandard"`
+		TokenAddress  string `json:"tokenAddress"`
+		TokenId       string `json:"tokenId"`
+		SignedAmount  string `json:"signedAmount"`
+	} `json:"items"`
+	ExtraData string `json:"extraData"`
+}
+
+func (c OriginClaimableResponse) CanClaim() bool {
+	return c.Withdrawable > 0
+}
+
+func (c OriginClaimableResponse) GetClaimableAmount() int {
+	return c.Withdrawable
+}
+
+func (c *AxieClient) GetClaimOriginPayload(ctx context.Context, address, privateKeyStr string) (*OriginClaimableResponse, error) {
+	token, err := c.CreateAccessToken(address, privateKeyStr)
+	if err != nil {
+		return nil, err
+	}
+	return c.getClaimableSlpPayload(token)
+}
+
+func (c *AxieClient) getClaimableSlpPayload(token string) (*OriginClaimableResponse, error) {
+	var headers = utils.DefaultAxieSiteRequestHeaders
+	headers["Authorization"] = fmt.Sprintf("Bearer %s", token)
+	var resp OriginClaimableResponse
+	respBytes, err := utils.CallGetHttpApi(
+		"https://game-api-origin.skymavis.com/v2/users/me/items/marketplace/slp",
+		headers,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(respBytes, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
+}
+
+func (c *AxieClient) getWithdrawSlpPayload(token string, amount int) (*OriginWithdrawItemsResponse, error) {
+	var headers = utils.DefaultAxieSiteRequestHeaders
+	headers["Authorization"] = fmt.Sprintf("Bearer %s", token)
+	var resp OriginWithdrawItemsResponse
+
+	respBytes, err := utils.CallPostHttpApi(
+		"https://game-api-origin.skymavis.com/v2/rpc/items/withdraw", map[string][]map[string]interface{}{
+			"items": {
+				{
+					"amount": amount,
+					"itemId": "slp",
+				},
+			},
+		},
+		headers,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(respBytes, &resp); err != nil {
+		return nil, err
+	}
+
+	return &resp, nil
+}
+
+func (c *AxieClient) ClaimOriginSlp(
+	ctx context.Context, address, privateKeyStr string) (string, error) {
+
+	token, err := c.CreateAccessToken(address, privateKeyStr)
+	if err != nil {
+		return "", err
+	}
+
+	claimableResponse, err := c.getClaimableSlpPayload(token)
+	//log.Printf("claimable resp %v", claimableResponse)
+	if err != nil {
+		return "", err
+	}
+
+	if !claimableResponse.CanClaim() {
+		return "", errors.New(fmt.Sprintf(
+			"No claimable slp",
+		))
+	}
+
+	withdrawSlpResponse, err := c.getWithdrawSlpPayload(token, claimableResponse.GetClaimableAmount())
+
+	//log.Printf("withdraw slp resp %v", withdrawSlpResponse)
+
+	if err != nil {
+		return "", errors.New(fmt.Sprintf(
+			"Another transaction in progress. Please try again later",
+		))
+	}
+
+	ops, err := c.createTransactOpsWithGasLimitRange(ctx, privateKeyStr, 288800, int64(288800*1.1))
+
+	if err != nil {
+		log.Printf("gas limit error %v", err)
+		return "", err
+	}
+
+	tokenId, err := strconv.ParseInt(withdrawSlpResponse.Items[0].TokenId, 10, 32)
+	if err != nil {
+		return "", err
+	}
+
+	quantity, err := strconv.ParseInt(withdrawSlpResponse.Items[0].SignedAmount, 10, 32)
+	if err != nil {
+		return "", err
+	}
+
+	tx, err := c.portalClient.Withdraw(
+		ops,
+		abi.Struct2{
+			Owner:     common.HexToAddress(withdrawSlpResponse.UserAddress),
+			Nonce:     big.NewInt(withdrawSlpResponse.Nonce),
+			ExpiredAt: big.NewInt(withdrawSlpResponse.ExpiredAt),
+			Assets: []abi.Struct0{
+				{
+					Erc:      0,
+					Addr:     common.HexToAddress(constants.SLP_CONTRACT),
+					Id:       big.NewInt(tokenId),
+					Quantity: big.NewInt(quantity),
+				},
+			},
+			ExtraData: common.FromHex(withdrawSlpResponse.ExtraData),
+		},
+		common.FromHex(withdrawSlpResponse.Signature),
+		[]common.Address{
+			common.HexToAddress(constants.AXS_CONTRACT),
+			common.HexToAddress(constants.WETH_CONTRACT),
+			common.HexToAddress(constants.USDC_CONTRACT),
+		},
+	)
+
+	return tx.Hash().String(), nil
 }
 
 func (c *AxieClient) ClaimSlp(
