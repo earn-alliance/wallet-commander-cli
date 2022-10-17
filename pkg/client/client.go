@@ -555,7 +555,7 @@ func (c *AxieClient) ClaimOriginSlp(
 		))
 	}
 
-	withdrawSlpResponse, err := c.getWithdrawSlpPayload(token, 1)
+	withdrawSlpResponse, err := c.getWithdrawSlpPayload(token, claimableResponse.GetClaimableAmount())
 
 	//log.Printf("withdraw slp resp %v", withdrawSlpResponse)
 
