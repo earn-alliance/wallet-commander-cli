@@ -5,6 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"math/big"
+	"math/rand"
+	"strconv"
+	"sync"
+	"time"
+
 	"github.com/earn-alliance/wallet-commander-cli/pkg/abi"
 	"github.com/earn-alliance/wallet-commander-cli/pkg/constants"
 	"github.com/earn-alliance/wallet-commander-cli/pkg/store"
@@ -19,12 +26,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/patrickmn/go-cache"
-	"log"
-	"math/big"
-	"math/rand"
-	"strconv"
-	"sync"
-	"time"
 )
 
 const (
@@ -184,10 +185,10 @@ func New() (Client, error) {
 }
 
 func (c *AxieClient) createTransactOps(ctx context.Context, privateKeyStr string) (*bind.TransactOpts, error) {
-	return c.createTransactOpsWithGasLimitRange(ctx, privateKeyStr, 165313, 198888)
+	return c.createTransactOpsWithGasLimitRange(ctx, privateKeyStr, 1000000)
 }
 
-func (c *AxieClient) createTransactOpsWithGasLimitRange(ctx context.Context, privateKeyStr string, lowerGasLimit int64, upperGasLimit int64) (*bind.TransactOpts, error) {
+func (c *AxieClient) createTransactOpsWithGasLimitRange(ctx context.Context, privateKeyStr string, gasLimit uint64) (*bind.TransactOpts, error) {
 	privateKey, err := crypto.ToECDSA(common.FromHex(privateKeyStr))
 
 	if err != nil {
@@ -213,8 +214,7 @@ func (c *AxieClient) createTransactOpsWithGasLimitRange(ctx context.Context, pri
 	}
 
 	rand.Seed(time.Now().UnixNano())
-	gasLimit := uint64(rand.Int63n(upperGasLimit-lowerGasLimit+1) + lowerGasLimit)
-
+	// gasLimit := uint64(rand.Int63n(upperGasLimit-lowerGasLimit+1) + lowerGasLimit)
 	ops.Nonce = big.NewInt(int64(nonce))
 	ops.GasPrice = defaultGasPriceWei
 	ops.GasLimit = gasLimit
@@ -544,7 +544,7 @@ func (c *AxieClient) ClaimOriginSlp(
 	}
 
 	claimableResponse, err := c.getClaimableSlpPayload(token)
-	//log.Printf("claimable resp %v", claimableResponse)
+	log.Printf("claimable resp %v", claimableResponse)
 	if err != nil {
 		return "", err
 	}
@@ -555,7 +555,7 @@ func (c *AxieClient) ClaimOriginSlp(
 		))
 	}
 
-	withdrawSlpResponse, err := c.getWithdrawSlpPayload(token, claimableResponse.GetClaimableAmount())
+	withdrawSlpResponse, err := c.getWithdrawSlpPayload(token, 1)
 
 	//log.Printf("withdraw slp resp %v", withdrawSlpResponse)
 
@@ -565,7 +565,7 @@ func (c *AxieClient) ClaimOriginSlp(
 		))
 	}
 
-	ops, err := c.createTransactOpsWithGasLimitRange(ctx, privateKeyStr, 288800, int64(288800*1.1))
+	ops, err := c.createTransactOps(ctx, privateKeyStr)
 
 	if err != nil {
 		log.Printf("gas limit error %v", err)
@@ -606,6 +606,10 @@ func (c *AxieClient) ClaimOriginSlp(
 		},
 	)
 
+	if err != nil {
+		return "", err
+	}
+
 	return tx.Hash().String(), nil
 }
 
@@ -645,8 +649,37 @@ func (c *AxieClient) ClaimSlp(
 	return tx.Hash().String(), nil
 }
 
+func (c *AxieClient) CreateRandomMessage() (string, error) {
+	respBytes, err := utils.CallPostHttpApi(AXIE_INFINITY_GRAPHQL_GATEWAY, GraphqlRequest{
+		OperationName: "CreateRandomMessage",
+		Variables:     map[string]interface{}{},
+		Query: `mutation CreateRandomMessage {
+			createRandomMessage
+		}`,
+	}, utils.DefaultAxieSiteRequestHeaders)
+
+	if err != nil {
+		return "", err
+	}
+	type CreateRandomMessageResponse struct {
+		Data struct {
+			RandomMessage string `json:"createRandomMessage"`
+		} `json:"data"`
+	}
+	var response CreateRandomMessageResponse
+	if err := json.Unmarshal(respBytes, &response); err != nil {
+		return "", err
+	}
+
+	if response.Data.RandomMessage == "" {
+		return "", errors.New("random message empty")
+	}
+	return response.Data.RandomMessage, nil
+
+}
+
 func (c *AxieClient) CreateAccessToken(address, privateKeyStr string) (string, error) {
-	randomMsg, err := createRandomMessage()
+	randomMsg, err := c.CreateRandomMessage()
 
 	if err != nil {
 		return "", err
