@@ -33,6 +33,7 @@ const (
 	HOUR_PER_DAY                  = 24
 	DAYS_BETWEEN_CLAIM            = 14
 	DURATION_BETWEEN_CLAIMS       = time.Hour * HOUR_PER_DAY * DAYS_BETWEEN_CLAIM
+	GAS_LIMIT                     = 1000000
 )
 
 var (
@@ -185,10 +186,6 @@ func New() (Client, error) {
 }
 
 func (c *AxieClient) createTransactOps(ctx context.Context, privateKeyStr string) (*bind.TransactOpts, error) {
-	return c.createTransactOpsWithGasLimitRange(ctx, privateKeyStr, 1000000)
-}
-
-func (c *AxieClient) createTransactOpsWithGasLimitRange(ctx context.Context, privateKeyStr string, gasLimit uint64) (*bind.TransactOpts, error) {
 	privateKey, err := crypto.ToECDSA(common.FromHex(privateKeyStr))
 
 	if err != nil {
@@ -217,7 +214,7 @@ func (c *AxieClient) createTransactOpsWithGasLimitRange(ctx context.Context, pri
 	// gasLimit := uint64(rand.Int63n(upperGasLimit-lowerGasLimit+1) + lowerGasLimit)
 	ops.Nonce = big.NewInt(int64(nonce))
 	ops.GasPrice = defaultGasPriceWei
-	ops.GasLimit = gasLimit
+	ops.GasLimit = GAS_LIMIT
 	ops.Context = ctx
 
 	ops.Signer = func(address common.Address, transaction *types.Transaction) (*types.Transaction, error) {
