@@ -541,7 +541,7 @@ func (c *AxieClient) ClaimOriginSlp(
 	}
 
 	claimableResponse, err := c.getClaimableSlpPayload(token)
-	log.Printf("claimable resp %v", claimableResponse)
+	// log.Printf("claimable resp %v", claimableResponse)
 	if err != nil {
 		return "", err
 	}
